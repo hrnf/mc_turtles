@@ -216,7 +216,6 @@ function moveTo(x, y, z)
 
     -- We try to move in the best path in any axis, if we fail then
     -- we begin trying to move in the worst path until we find a path.
-    :: MoveToStart ::
     while currentPos[1] ~= x and currentPos[2] ~= y and currentPos[3] ~= z do
         -- Try to move on X
         operator = getMovOperator(currentPos[1], x)
@@ -226,9 +225,8 @@ function moveTo(x, y, z)
         currentPos[1] = currentPos[1] + operator
         
         if (moved and not isBestPath) then
-            isBestPath = true
-            moved = false
-            goto MoveToStart
+            moveTo(x, y, z)
+            return
         end
 
         -- Try to move on Y
@@ -239,9 +237,8 @@ function moveTo(x, y, z)
         currentPos[2] = currentPos[2] + operator
 
         if (moved and not isBestPath) then
-            isBestPath = true
-            moved = false
-            goto MoveToStart
+            moveTo(x, y, z)
+            return
         end
 
         -- Try to move on Z
@@ -251,9 +248,8 @@ function moveTo(x, y, z)
         currentPos[3] = currentPos[3] + operator
 
         if (moved and not isBestPath) then
-            isBestPath = true
-            moved = false
-            goto MoveToStart
+            moveTo(x, y, z)
+            return
         end
 
         -- Set state for the next iteration
