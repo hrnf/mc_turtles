@@ -1,0 +1,286 @@
+local tArgs = { ... }
+
+currentFace = nFace
+nFace = 'n'
+sFace = 's'
+eFace = 'e'
+wFace = 'w'
+
+startPos = {0, 0, 0}
+currentPos = {0, 0, 0}
+limitPos = {tonumber(tArgs[1]), tonumber(tArgs[2]), tonumber(tArgs[3])}
+digSteps = {}
+
+function init()
+    -- Dig square
+    while true do
+        while true do
+            if (turtle.getFuelLevel() < #digSteps) then
+                returnToZero()
+                return
+            end
+
+            if (currentPos[1] == limitPos[1]) then
+                digTo(startPos[1], currentPos[2], currentPos[3])
+            else
+                digTo(limitPos[1], currentPos[2], currentPos[3])
+            end
+            
+            if (currentPos[2]+1 > limitPos[2]) then
+                break
+            else
+                digTo(currentPos[1], currentPos[2]+1, currentPos[3])
+            end
+        end
+        if (currentPos[3]+1 > limitPos[3]) then
+            break
+        else
+            digTo(currentPos[1], currentPos[2], currentPos[3]+1)
+        end
+    end
+
+    returnToZero()
+end
+
+function canDigMore()
+    local success, newItem = turtle.inspect()
+
+    -- it's air
+    if (success == false) then return true end
+
+    -- Try to find a stack of the block
+    nItems = 0
+    for i = 1, 16, 1 do
+        item = turtle.getItemDetail(i)
+        if (item ~= nil) then
+            nItems = nItems + 1
+        end
+    end
+    if nItems < 16 then return true end
+    -- TODO: check correctly
+    
+    return false
+end
+
+function returnToZero()
+    print("return")
+    for i = #digSteps, 1, -1 do
+        step = digSteps[i]
+        if step == "up" then
+            turtle.down()
+        elseif step == "down" then
+            turtle.up()
+        elseif step == "forward" then
+            turtle.back()
+        elseif step == "left" then
+            turtle.turnRight()
+        elseif step == "right" then
+            turtle.turnLeft()
+        end
+    end
+end
+
+function returnToDigSite()
+    for i, step in pairs(digSteps) do
+        if step == "up" then
+            turtle.up()
+        elseif step == "down" then
+            turtle.down()
+        elseif step == "forward" then
+            turtle.forward()
+        elseif step == "left" then
+            turtle.turnLeft()
+        elseif step == "right" then
+            turtle.turnRight()
+        end
+    end 
+end
+
+function getMovOperator(cur, obj)
+    operator = 1
+    if (cur > obj) then operator = -1 end
+    return operator
+end
+
+function faceTo(face)
+    nFaces = {}
+    nFaces['w'] = 0
+    nFaces['n'] = 1
+    nFaces['e'] = 2
+    nFaces['s'] = 3
+
+    while (currentFace ~= face) do
+        if nFaces[currentFace] < nFaces[face] then
+            turtle.turnRight()
+            table.insert(digSteps, "right")
+
+            if (currentFace == 'n') then
+                currentFace = 'e'
+            elseif (currentFace == 'w') then
+                currentFace = 'n'
+            elseif (currentFace == 's') then
+                currentFace = 'w'
+            elseif (currentFace == 'e') then
+                currentFace = 's'
+            end
+        else
+            turtle.turnLeft()
+            table.insert(digSteps, "left")
+
+            if (currentFace == 'n') then
+                currentFace = 'w'
+            elseif (currentFace == 'w') then
+                currentFace = 's'
+            elseif (currentFace == 's') then
+                currentFace = 'e'
+            elseif (currentFace == 'e') then
+                currentFace = 'n'
+            end
+        end
+    end
+end
+
+function digTo(x, y, z)
+    print("digTo")
+    print(x, y, z)
+
+    if (currentPos[1] ~= x) then
+        operator = getMovOperator(currentPos[1], x)
+        if operator > 0 then
+            faceTo(eFace)
+        else
+            faceTo(wFace)
+        end
+        if operator > 0 then max=x-1 else max=x+1 end
+        
+        for curX = currentPos[1], max, operator do
+            if turtle.detect() then
+                if (not canDigMore()) then 
+                    returnToZero()
+                    destroyTrash()
+                    storeItems()
+                    moveTo(0, 0, 0)
+                    returnToDigSite()
+                end
+
+                turtle.dig()
+            end
+            turtle.forward()
+            table.insert(digSteps, "forward")
+            currentPos[1] = currentPos[1] + operator
+        end
+    end
+
+    if (currentPos[2] ~= y) then
+        operator = getMovOperator(currentPos[2], y)
+        if operator > 0 then
+            faceTo(nFace)
+        else
+            faceTo(sFace)
+        end
+
+        if operator > 0 then max=y-1 else max=y+1 end
+        
+        for curY = currentPos[2], max, operator do
+            if (not canDigMore()) then 
+                returnToZero()
+                destroyTrash()
+                storeItems()
+                moveTo(0, 0, 0)
+                returnToDigSite()
+            end
+            turtle.forward()
+            table.insert(digSteps, "forward")
+            currentPos[2] = currentPos[2] + operator
+        end
+    end
+    
+    if (currentPos[3] ~= z) then
+        operator = getMovOperator(currentPos[3], z)
+        if operator > 0 then max=z-1 else max=z+1 end
+        for curZ = currentPos[3], max, operator do
+            if operator > 0 then turtle.digUp() else turtle.digDown() end
+            if operator > 0 then
+                turtle.up()
+                table.insert(digSteps, "up")
+            else
+                turtle.down()
+                table.insert(digSteps, "down")
+            end
+            currentPos[3] = currentPos[3] + operator
+        end
+    end
+end
+
+function moveTo(x, y, z)
+    moved = false
+    isBestPath = true
+
+    -- We try to move in the best path in any axis, if we fail then
+    -- we begin trying to move in the worst path until we find a path.
+    while currentPos[1] ~= x and currentPos[2] ~= y and currentPos[3] ~= z do
+        -- Try to move on X
+        operator = getMovOperator(currentPos[1], x)
+        if (not isBestPath) then operator = operator * -1 end
+        if operator > 0 then faceTo(eFace) else faceTo(wFace) end
+        moved = turtle.forward()
+        currentPos[1] = currentPos[1] + operator
+        
+        if (moved and not isBestPath) then
+            moveTo(x, y, z)
+            return
+        end
+
+        -- Try to move on Y
+        operator = getMovOperator(currentPos[2], y)
+        if (not isBestPath) then operator = operator * -1 end
+        if operator > 0 then faceTo(nFace) else faceTo(sFace) end
+        moved = turtle.forward()
+        currentPos[2] = currentPos[2] + operator
+
+        if (moved and not isBestPath) then
+            moveTo(x, y, z)
+            return
+        end
+
+        -- Try to move on Z
+        operator = getMovOperator(currentPos[3], z)
+        if (not isBestPath) then operator = operator * -1 end
+        if operator > 0 then moved = turtle.up() else moved = turtle.down() end
+        currentPos[3] = currentPos[3] + operator
+
+        if (moved and not isBestPath) then
+            moveTo(x, y, z)
+            return
+        end
+
+        -- Set state for the next iteration
+        if (not moved) then isBestPath = false end
+        if (moved) then moved = false end
+    end
+end
+
+function destroyTrash()
+    moveTo(3, -1, 0)
+    -- For item, check if there's dirt
+    for i = 1, 16, 1 do
+        item = turtle.getItemDetail(i)
+        if (item == nil) then
+            return
+        end
+        string.find(item.name, "dirt")
+        turtle.select(i)
+        turtle.drop(64)
+    end
+end
+
+function storeItems()
+    moveTo(0, -1, 0)
+    -- For item, check if there's dirt
+    for i = 1, 16, 1 do
+        turtle.select(i)
+        turtle.drop()
+    end
+end
+
+init()
